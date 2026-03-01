@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portuguese Flashcard Extractor</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f5f5f7;
+    color: #1d1d1f;
+    min-height: 100vh;
+    padding: 2rem 1rem;
+  }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 0.25rem;
+  }
+
+  .subtitle {
+    text-align: center;
+    color: #6e6e73;
+    font-size: 0.95rem;
+    margin-bottom: 2rem;
+  }
+
+  /* Paste area */
+  .paste-zone {
+    background: #fff;
+    border: 2px dashed #c7c7cc;
+    border-radius: 16px;
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+  .paste-zone:hover, .paste-zone.dragover {
+    border-color: #007aff;
+    background: #f0f5ff;
+  }
+  .paste-zone.has-content {
+    border-style: solid;
+    border-color: #34c759;
+    background: #f0faf3;
+    cursor: default;
+  }
+  .paste-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.75rem;
+    display: block;
+  }
+  .paste-label {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+  .paste-hint {
+    color: #86868b;
+    font-size: 0.85rem;
+  }
+
+  /* Steps */
+  .steps {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .step {
+    flex: 1;
+    min-width: 180px;
+    background: #fff;
+    border-radius: 12px;
+    padding: 1rem;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px; height: 28px;
+    background: #007aff;
+    color: #fff;
+    border-radius: 50%;
+    font-weight: 700;
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+  }
+  .step-text {
+    font-size: 0.85rem;
+    color: #3a3a3c;
+    line-height: 1.4;
+  }
+
+  /* Results */
+  .results {
+    display: none;
+    margin-top: 2rem;
+  }
+  .results.visible { display: block; }
+
+  .results-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .results-count {
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+  .results-breakdown {
+    font-size: 0.85rem;
+    color: #6e6e73;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.6rem 1.2rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary {
+    background: #007aff;
+    color: #fff;
+  }
+  .btn-primary:hover { background: #0066d6; }
+  .btn-secondary {
+    background: #e5e5ea;
+    color: #1d1d1f;
+  }
+  .btn-secondary:hover { background: #d1d1d6; }
+  .btn-success {
+    background: #34c759;
+    color: #fff;
+  }
+
+  .btn-group { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+  /* Table */
+  .card-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .card-table th {
+    background: #f2f2f7;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6e6e73;
+    border-bottom: 1px solid #e5e5ea;
+  }
+  .card-table td {
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid #f2f2f7;
+    font-size: 0.9rem;
+    line-height: 1.4;
+  }
+  .card-table tr:last-child td { border-bottom: none; }
+  .card-table tr:hover td { background: #f9f9fb; }
+  .row-num {
+    color: #aeaeb2;
+    font-size: 0.8rem;
+    width: 40px;
+    text-align: center;
+  }
+
+  /* Quizlet instructions */
+  .quizlet-instructions {
+    display: none;
+    margin-top: 1.5rem;
+    background: #fff;
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .quizlet-instructions.visible { display: block; }
+  .quizlet-instructions h3 {
+    font-size: 0.95rem;
+    margin-bottom: 0.75rem;
+  }
+  .quizlet-instructions ol {
+    padding-left: 1.25rem;
+    font-size: 0.85rem;
+    color: #3a3a3c;
+    line-height: 1.8;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: #1d1d1f;
+    color: #fff;
+    padding: 0.75rem 1.5rem;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    opacity: 0;
+    transition: transform 0.3s, opacity 0.3s;
+    z-index: 100;
+  }
+  .toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Portuguese Flashcard Extractor</h1>
+  <p class="subtitle">Extract vocabulary from your lesson and copy it straight into Quizlet</p>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-text">Open your Google Doc lesson</div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-text">Select all (<kbd>Cmd+A</kbd>) and copy (<kbd>Cmd+C</kbd>)</div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-text">Click below and paste (<kbd>Cmd+V</kbd>)</div>
+    </div>
+  </div>
+
+  <div class="paste-zone" id="pasteZone" tabindex="0">
+    <span class="paste-icon" id="pasteIcon">&#128203;</span>
+    <div class="paste-label" id="pasteLabel">Click here and paste your lesson</div>
+    <div class="paste-hint" id="pasteHint">Or press Cmd+V anywhere on this page</div>
+  </div>
+
+  <div class="results" id="results">
+    <div class="results-header">
+      <div>
+        <div class="results-count" id="resultsCount"></div>
+        <div class="results-breakdown" id="resultsBreakdown"></div>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="copyBtn" onclick="copyForQuizlet()">Copy for Quizlet</button>
+        <button class="btn btn-secondary" onclick="downloadFile()">Download .txt</button>
+        <button class="btn btn-secondary" onclick="clearAll()">Clear</button>
+      </div>
+    </div>
+    <table class="card-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Portuguese</th>
+          <th>English</th>
+        </tr>
+      </thead>
+      <tbody id="cardBody"></tbody>
+    </table>
+    <div class="quizlet-instructions" id="quizletInstructions">
+      <h3>Paste into Quizlet:</h3>
+      <ol>
+        <li>Go to <strong>quizlet.com</strong> &rarr; Create &rarr; + Create a new study set</li>
+        <li>Click <strong>"+ Import"</strong> (top area)</li>
+        <li>Paste what you just copied (Cmd+V)</li>
+        <li>Set "Between term and definition" to <strong>Tab</strong></li>
+        <li>Set "Between rows" to <strong>New line</strong></li>
+        <li>Click <strong>Import</strong></li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// -----------------------------------------------
+// Extraction logic (ported from Python)
+// -----------------------------------------------
+
+const EXERCISE_RE = new RegExp(
+  '(sua vez|exerc[ií]cio|fill in|multiple choice|true or false|' +
+  'verdadeiro ou falso|translate into|traduza|match with|' +
+  'choose the|escolha|complete (with|com)|comprehension|' +
+  'perguntas de compreens|role-play|visual activity|' +
+  'visual shopping|responda oralmente|short answer|' +
+  'create a sentence|produção própria|dialogue keyword|' +
+  'transform into|gap-fill|exercício visual|' +
+  'homework|fill in the blank|choose the right)', 'i'
+);
+
+const CONTENT_RE = new RegExp(
+  '(vocabulary|vocabul[aá]rio|introduction|introdução|' +
+  'phrases for|key expression|preposições de|' +
+  'preposição |contração|tabela de|' +
+  'dialogue\\b|períodos|time expression|' +
+  'expressões comuns|lesson \\d|parte de cima|' +
+  'parte de baixo|roupas especiais|acessórios de|' +
+  'calçados|outros itens|exemplos\\b|examples\\b|' +
+  'ser de|morar em|articles and|cidades|' +
+  'numbers for|the usage of|dizendo a hora|' +
+  'meia hora|quinze minutos|grave accent|' +
+  'important notes|tips\\b|conclusion|' +
+  'visual table)', 'i'
+);
+
+const FRAGMENT_RE = /\b(in|of|the|a|an|to|for|at|is|it|from|with)\s*$/i;
+
+function clean(text) {
+  if (!text) return '';
+  // Remove emojis and icons
+  text = text.replace(/[\u{1F300}-\u{1FAFF}\u{F0000}-\u{FFFFF}\u2600-\u27BF\u2B50\u2705\u274C\u2714\u2716]/gu, '');
+  // Strip leading/trailing punctuation noise
+  text = text.replace(/^[\s\u2022\u25CF\u25CB\u25E6\u25AA\u25B8\u25BA\u2192\u2190\u2194\u00B7\u2023]+/, '');
+  text = text.replace(/[\s\u2022\u25CF\u25CB\u25E6\u25AA\u25B8\u25BA\u2192\u2190\u2194\u00B7\u2023]+$/, '');
+  // Collapse whitespace
+  text = text.replace(/\s+/g, ' ').trim();
+  return text;
+}
+
+function extractArrowPairs(text) {
+  const pairs = [];
+  const lines = text.split('\n');
+  for (const line of lines) {
+    // Normalize arrows
+    const normalized = line.replace(/\s*[\u2192\u27F6\u21D2]\s*/g, ' \u2192 ');
+    // Split on bullet merges
+    const parts = normalized.split(/\s*[\u25CF\u2022]\s*/);
+    for (const part of parts) {
+      const m = part.match(/(.+?)\s*\u2192\s*(.+)/);
+      if (!m) continue;
+      const left = clean(m[1]);
+      const right = clean(m[2]);
+      if (!left || !right) continue;
+      if (left.includes('[ ]') || right.includes('[ ]')) continue;
+      if (left.includes('______') || right.includes('______')) continue;
+      if (['lugar', 'tempo', 'cities'].includes(left.toLowerCase())) continue;
+      if (right.toLowerCase().includes('almost always')) continue;
+      pairs.push([left, right]);
+    }
+  }
+  return pairs;
+}
+
+function extractParentheticalTranslations(text) {
+  const pairs = [];
+  const re = /([A-Z\u00C0-\u00DA][^()\n]{5,}?[.!?])\s*\(([A-Z][^()]+)\)/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const pt = clean(m[1]);
+    const en = clean(m[2]);
+    if (pt && en && !pt.includes('[ ]')) {
+      pairs.push([pt, en]);
+    }
+  }
+  return pairs;
+}
+
+function addPair(pt, en, seen, allPairs) {
+  pt = pt.replace(/\s+/g, ' ').trim();
+  en = en.replace(/\s+/g, ' ').trim();
+  const key = pt.toLowerCase() + '\t' + en.toLowerCase();
+  if (seen.has(key) || !pt || !en) return;
+  if (pt.includes('______') || en.includes('______')) return;
+  if (pt.includes('[ ]') || en.includes('[ ]')) return;
+  if (pt.length > 200 || en.length > 200) return;
+  // Skip truncated translations
+  if (pt.length > 20 && en.split(' ').length <= 2 && !en.endsWith('.')) return;
+  // Skip fragment endings (only for phrases, not single-word translations like "em → in")
+  if (FRAGMENT_RE.test(en) && en.length < 30 && pt.split(' ').length > 1) return;
+  seen.add(key);
+  allPairs.push([pt, en]);
+}
+
+function extractFromHTML(html) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const allPairs = [];
+  const seen = new Set();
+  let inExerciseSection = false;
+
+  // --- Extract from tables ---
+  const tables = doc.querySelectorAll('table');
+  for (const table of tables) {
+    const rows = table.querySelectorAll('tr');
+    if (rows.length < 2) continue;
+
+    // Parse headers
+    const headerCells = rows[0].querySelectorAll('td, th');
+    const headers = Array.from(headerCells).map(function(c) {
+      return clean(c.textContent).toLowerCase();
+    });
+
+    // Skip exercise tables
+    const tableText = table.textContent;
+    if (tableText.includes('[ ]') || tableText.includes('______')) {
+      const blankCount = (tableText.match(/\[ \]/g) || []).length +
+                         (tableText.match(/______/g) || []).length;
+      if (blankCount > 2) continue;
+    }
+
+    // Find column indices
+    let ptCol = -1, enCol = -1, exemploCol = -1, tradCol = -1, usoCol = -1;
+    headers.forEach(function(h, i) {
+      if (['portugu', 'preposi\u00e7\u00e3o', 'forma'].some(function(k) { return h.includes(k); })) ptCol = i;
+      if (['english', 'translat', 'tradu\u00e7\u00e3o'].some(function(k) { return h.includes(k); })) enCol = i;
+      if (h.includes('exemplo')) exemploCol = i;
+      if (h.includes('tradu\u00e7\u00e3o') || h.includes('translat')) tradCol = i;
+      if (h.includes('uso')) usoCol = i;
+    });
+
+    // Strategy 1: Preposicao + Uso (+ Exemplo + Traducao)
+    // Check this BEFORE simple Portuguese/English, because preposição tables
+    // also have a tradução column that would falsely trigger Strategy 2
+    const prepCol = ptCol >= 0 ? ptCol :
+      headers.findIndex(function(h) { return h.includes('preposi\u00e7\u00e3o'); });
+    if (prepCol >= 0 && usoCol >= 0) {
+      for (let i = 1; i < rows.length; i++) {
+        const cells = rows[i].querySelectorAll('td, th');
+        if (cells.length > Math.max(prepCol, usoCol)) {
+          const prep = clean(cells[prepCol].textContent);
+          const uso = clean(cells[usoCol].textContent);
+          if (prep && uso) {
+            const pm = uso.match(/\("([^"]+)"\)/);
+            if (pm) {
+              addPair(prep, pm[1], seen, allPairs);
+            } else {
+              addPair(prep, uso, seen, allPairs);
+            }
+          }
+        }
+        if (exemploCol >= 0 && tradCol >= 0 && cells.length > Math.max(exemploCol, tradCol)) {
+          const ex = clean(cells[exemploCol].textContent);
+          const tr = clean(cells[tradCol].textContent);
+          if (ex && tr) {
+            const exParts = ex.split(' / ');
+            const trParts = tr.split(' / ');
+            if (exParts.length === trParts.length && exParts.length > 1) {
+              for (let j = 0; j < exParts.length; j++) {
+                const e = clean(exParts[j]);
+                const t = clean(trParts[j]);
+                if (e && t) addPair(e, t, seen, allPairs);
+              }
+            } else {
+              addPair(ex, tr, seen, allPairs);
+            }
+          }
+        }
+      }
+      continue;
+    }
+
+    // Strategy 2: Simple Portuguese / English columns
+    if (ptCol >= 0 && enCol >= 0) {
+      for (let i = 1; i < rows.length; i++) {
+        const cells = rows[i].querySelectorAll('td, th');
+        if (cells.length > Math.max(ptCol, enCol)) {
+          const pt = clean(cells[ptCol].textContent);
+          const en = clean(cells[enCol].textContent);
+          if (pt && en) addPair(pt, en, seen, allPairs);
+        }
+      }
+      continue;
+    }
+
+    // Strategy 3: Exemplo + Traducao only
+    if (exemploCol >= 0 && tradCol >= 0) {
+      for (let i = 1; i < rows.length; i++) {
+        const cells = rows[i].querySelectorAll('td, th');
+        if (cells.length > Math.max(exemploCol, tradCol)) {
+          const ex = clean(cells[exemploCol].textContent);
+          const tr = clean(cells[tradCol].textContent);
+          if (ex && tr) addPair(ex, tr, seen, allPairs);
+        }
+      }
+      continue;
+    }
+  }
+
+  // --- Extract from text elements ---
+  const elements = doc.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, span');
+  for (const el of elements) {
+    // Skip elements inside tables
+    if (el.closest('table')) continue;
+
+    const text = el.textContent.trim();
+    if (!text) continue;
+
+    // Section tracking
+    if (EXERCISE_RE.test(text)) { inExerciseSection = true; continue; }
+    if (CONTENT_RE.test(text)) { inExerciseSection = false; continue; }
+    if (/Lesson \d+/.test(text)) { inExerciseSection = false; continue; }
+    if (inExerciseSection) continue;
+
+    // Arrow pairs
+    for (const pair of extractArrowPairs(text)) {
+      addPair(pair[0], pair[1], seen, allPairs);
+    }
+
+    // Parenthetical translations
+    for (const pair of extractParentheticalTranslations(text)) {
+      addPair(pair[0], pair[1], seen, allPairs);
+    }
+  }
+
+  return allPairs;
+}
+
+function extractFromPlainText(text) {
+  const allPairs = [];
+  const seen = new Set();
+  let inExerciseSection = false;
+
+  const lines = text.split('\n');
+  for (const line of lines) {
+    const stripped = line.trim();
+    if (!stripped) continue;
+
+    if (EXERCISE_RE.test(stripped)) { inExerciseSection = true; continue; }
+    if (CONTENT_RE.test(stripped)) { inExerciseSection = false; continue; }
+    if (/Lesson \d+/.test(stripped)) { inExerciseSection = false; continue; }
+    if (inExerciseSection) continue;
+
+    for (const pair of extractArrowPairs(line)) {
+      addPair(pair[0], pair[1], seen, allPairs);
+    }
+  }
+
+  // Parenthetical translations on full text
+  for (const pair of extractParentheticalTranslations(text)) {
+    addPair(pair[0], pair[1], seen, allPairs);
+  }
+
+  return allPairs;
+}
+
+
+// -----------------------------------------------
+// UI logic
+// -----------------------------------------------
+
+var currentPairs = [];
+
+var pasteZone = document.getElementById('pasteZone');
+var pasteIcon = document.getElementById('pasteIcon');
+var pasteLabel = document.getElementById('pasteLabel');
+var pasteHint = document.getElementById('pasteHint');
+var resultsDiv = document.getElementById('results');
+var cardBody = document.getElementById('cardBody');
+var resultsCount = document.getElementById('resultsCount');
+var resultsBreakdown = document.getElementById('resultsBreakdown');
+var copyBtn = document.getElementById('copyBtn');
+var quizletInstructions = document.getElementById('quizletInstructions');
+var toastEl = document.getElementById('toast');
+
+// Listen for paste anywhere on the page
+document.addEventListener('paste', handlePaste);
+pasteZone.addEventListener('click', function() { pasteZone.focus(); });
+
+function handlePaste(e) {
+  e.preventDefault();
+
+  var html = e.clipboardData.getData('text/html');
+  var plain = e.clipboardData.getData('text/plain');
+
+  var pairs;
+  if (html && html.trim().length > 50) {
+    pairs = extractFromHTML(html);
+  } else if (plain) {
+    pairs = extractFromPlainText(plain);
+  } else {
+    showToast('Nothing to paste. Copy your lesson first.');
+    return;
+  }
+
+  if (pairs.length === 0) {
+    showToast('No flashcard pairs found. Make sure you copied a lesson with vocabulary tables or arrow patterns.');
+    return;
+  }
+
+  currentPairs = pairs;
+  renderResults(pairs);
+
+  // Update paste zone
+  pasteZone.classList.add('has-content');
+  pasteIcon.textContent = '\u2705';
+  pasteLabel.textContent = pairs.length + ' flashcards extracted!';
+  pasteHint.textContent = 'Paste again to replace with new content';
+}
+
+function renderResults(pairs) {
+  // Count words vs phrases
+  var words = pairs.filter(function(p) { return !p[0].includes(' ') && !p[1].includes(' '); }).length;
+  var phrases = pairs.length - words;
+
+  resultsCount.textContent = pairs.length + ' flashcard' + (pairs.length !== 1 ? 's' : '') + ' found';
+  resultsBreakdown.textContent = words + ' word' + (words !== 1 ? 's' : '') + ', ' + phrases + ' phrase' + (phrases !== 1 ? 's' : '');
+
+  cardBody.innerHTML = '';
+  pairs.forEach(function(pair, i) {
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td class="row-num">' + (i + 1) + '</td>' +
+      '<td>' + escapeHtml(pair[0]) + '</td>' +
+      '<td>' + escapeHtml(pair[1]) + '</td>';
+    cardBody.appendChild(tr);
+  });
+
+  resultsDiv.classList.add('visible');
+  resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // Reset copy button
+  copyBtn.textContent = 'Copy for Quizlet';
+  copyBtn.className = 'btn btn-primary';
+  quizletInstructions.classList.remove('visible');
+}
+
+function escapeHtml(text) {
+  var d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+
+function formatForQuizlet() {
+  return currentPairs.map(function(pair) {
+    var ptClean = pair[0].replace(/\t/g, ' ').replace(/\n/g, ' ');
+    var enClean = pair[1].replace(/\t/g, ' ').replace(/\n/g, ' ');
+    return ptClean + '\t' + enClean;
+  }).join('\n');
+}
+
+function copyForQuizlet() {
+  var text = formatForQuizlet();
+  navigator.clipboard.writeText(text).then(function() {
+    copyBtn.textContent = 'Copied!';
+    copyBtn.className = 'btn btn-success';
+    quizletInstructions.classList.add('visible');
+    showToast(currentPairs.length + ' flashcards copied to clipboard!');
+  }).catch(function() {
+    // Fallback for older browsers
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    copyBtn.textContent = 'Copied!';
+    copyBtn.className = 'btn btn-success';
+    quizletInstructions.classList.add('visible');
+    showToast(currentPairs.length + ' flashcards copied to clipboard!');
+  });
+}
+
+function downloadFile() {
+  var text = formatForQuizlet();
+  var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'flashcards.txt';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Downloaded flashcards.txt');
+}
+
+function clearAll() {
+  currentPairs = [];
+  resultsDiv.classList.remove('visible');
+  pasteZone.classList.remove('has-content');
+  pasteIcon.innerHTML = '&#128203;';
+  pasteLabel.textContent = 'Click here and paste your lesson';
+  pasteHint.textContent = 'Or press Cmd+V anywhere on this page';
+  quizletInstructions.classList.remove('visible');
+}
+
+var toastTimeout;
+function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(function() { toastEl.classList.remove('show'); }, 3000);
+}
+</script>
+</body>
+</html>
