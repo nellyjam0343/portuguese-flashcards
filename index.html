@@ -192,6 +192,52 @@
     text-align: center;
   }
 
+  /* Editable cells */
+  .card-table td.editable {
+    cursor: text;
+    position: relative;
+  }
+  .card-table td.editable:hover {
+    background: #f0f5ff;
+    outline: 1px solid #007aff;
+    outline-offset: -1px;
+    border-radius: 4px;
+  }
+  .card-table td.editable:focus {
+    background: #fff;
+    outline: 2px solid #007aff;
+    outline-offset: -2px;
+    border-radius: 4px;
+  }
+  .card-table td.edited {
+    background: #fffbeb;
+  }
+
+  /* Delete button */
+  .delete-btn {
+    width: 26px;
+    height: 26px;
+    border: none;
+    background: none;
+    color: #c7c7cc;
+    font-size: 1rem;
+    cursor: pointer;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+    padding: 0;
+  }
+  .delete-btn:hover {
+    background: #ff3b30;
+    color: #fff;
+  }
+  .action-col {
+    width: 40px;
+    text-align: center;
+  }
+
   /* Quizlet instructions */
   .quizlet-instructions {
     display: none;
@@ -279,6 +325,7 @@
           <th>#</th>
           <th>Portuguese</th>
           <th>English</th>
+          <th class="action-col"></th>
         </tr>
       </thead>
       <tbody id="cardBody"></tbody>
@@ -622,13 +669,51 @@ function renderResults(pairs) {
   resultsCount.textContent = pairs.length + ' flashcard' + (pairs.length !== 1 ? 's' : '') + ' found';
   resultsBreakdown.textContent = words + ' word' + (words !== 1 ? 's' : '') + ', ' + phrases + ' phrase' + (phrases !== 1 ? 's' : '');
 
-  cardBody.innerHTML = '';
+  while (cardBody.firstChild) cardBody.removeChild(cardBody.firstChild);
   pairs.forEach(function(pair, i) {
     var tr = document.createElement('tr');
-    tr.innerHTML =
-      '<td class="row-num">' + (i + 1) + '</td>' +
-      '<td>' + escapeHtml(pair[0]) + '</td>' +
-      '<td>' + escapeHtml(pair[1]) + '</td>';
+    tr.setAttribute('data-index', i);
+
+    var numTd = document.createElement('td');
+    numTd.className = 'row-num';
+    numTd.textContent = i + 1;
+
+    var ptTd = document.createElement('td');
+    ptTd.className = 'editable';
+    ptTd.setAttribute('contenteditable', 'true');
+    ptTd.setAttribute('spellcheck', 'false');
+    ptTd.setAttribute('data-field', 'pt');
+    ptTd.textContent = pair[0];
+
+    var enTd = document.createElement('td');
+    enTd.className = 'editable';
+    enTd.setAttribute('contenteditable', 'true');
+    enTd.setAttribute('spellcheck', 'false');
+    enTd.setAttribute('data-field', 'en');
+    enTd.textContent = pair[1];
+
+    var actionTd = document.createElement('td');
+    actionTd.className = 'action-col';
+    var delBtn = document.createElement('button');
+    delBtn.className = 'delete-btn';
+    delBtn.setAttribute('title', 'Delete this card');
+    delBtn.textContent = '\u00d7';
+    delBtn.onclick = function() { deleteCard(i); };
+    actionTd.appendChild(delBtn);
+
+    tr.appendChild(numTd);
+    tr.appendChild(ptTd);
+    tr.appendChild(enTd);
+    tr.appendChild(actionTd);
+
+    // Save edits on blur
+    ptTd.addEventListener('blur', function() { saveEdit(i, 'pt', ptTd); });
+    enTd.addEventListener('blur', function() { saveEdit(i, 'en', enTd); });
+
+    // Enter key finishes editing (don't insert newline)
+    ptTd.addEventListener('keydown', handleEditKeydown);
+    enTd.addEventListener('keydown', handleEditKeydown);
+
     cardBody.appendChild(tr);
   });
 
@@ -641,10 +726,54 @@ function renderResults(pairs) {
   quizletInstructions.classList.remove('visible');
 }
 
-function escapeHtml(text) {
-  var d = document.createElement('div');
-  d.textContent = text;
-  return d.innerHTML;
+function handleEditKeydown(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    e.target.blur();
+  }
+  if (e.key === 'Escape') {
+    // Revert to original value
+    var idx = parseInt(e.target.parentElement.getAttribute('data-index'));
+    var field = e.target.getAttribute('data-field');
+    e.target.textContent = currentPairs[idx][field === 'pt' ? 0 : 1];
+    e.target.classList.remove('edited');
+    e.target.blur();
+  }
+}
+
+function saveEdit(index, field, td) {
+  var newVal = td.textContent.replace(/\s+/g, ' ').trim();
+  if (!newVal) {
+    // If emptied, revert
+    td.textContent = currentPairs[index][field === 'pt' ? 0 : 1];
+    return;
+  }
+  var col = field === 'pt' ? 0 : 1;
+  if (newVal !== currentPairs[index][col]) {
+    currentPairs[index][col] = newVal;
+    td.classList.add('edited');
+    // Reset copy button since content changed
+    copyBtn.textContent = 'Copy for Quizlet';
+    copyBtn.className = 'btn btn-primary';
+  }
+}
+
+function deleteCard(index) {
+  currentPairs.splice(index, 1);
+  if (currentPairs.length === 0) {
+    clearAll();
+    showToast('All cards removed');
+    return;
+  }
+  renderResults(currentPairs);
+  showToast('Card deleted');
+}
+
+function updateCounts() {
+  var words = currentPairs.filter(function(p) { return !p[0].includes(' ') && !p[1].includes(' '); }).length;
+  var phrases = currentPairs.length - words;
+  resultsCount.textContent = currentPairs.length + ' flashcard' + (currentPairs.length !== 1 ? 's' : '') + ' found';
+  resultsBreakdown.textContent = words + ' word' + (words !== 1 ? 's' : '') + ', ' + phrases + ' phrase' + (phrases !== 1 ? 's' : '');
 }
 
 function formatForQuizlet() {
